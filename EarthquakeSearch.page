@@ -1,0 +1,311 @@
+<apex:page showHeader="false" sidebar="false" docType="html-5.0" controller="EarthquakeSearchController">
+ 
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <head>
+  <style type="text/css">
+    html { height: 100% }
+    body { height: 75%; margin: 100; padding: 0 }
+    #map-canvas { height: 90% }
+    .rTable {
+    display: table;
+    width: 100%;
+}
+.rTableRow {
+    display: table-row;
+}
+.rTableHeading {
+    display: table-header-group;
+    background-color: #ddd;
+}
+.rTableCell, .rTableHead {
+    display: table-cell;
+    padding: 3px 10px;
+    border: 1px solid #999999;
+}
+.rTableHeading {
+    display: table-header-group;
+    background-color: #ddd;
+    font-weight: bold;
+}
+.rTableFoot {
+    display: table-footer-group;
+    font-weight: bold;
+    background-color: #ddd;
+}
+.rTableBody {
+    display: table-row-group;
+}
+  </style>
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous"> </link>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBTfz95qCmk5cUoBjCFxsjgXVLbdHIZyVk" />
+<script type="text/javascript">
+
+//Global Variables
+var map;
+var lat;
+var lng;
+var address;
+var listofQuakes;
+var listofTenQuakes;
+var markers = [];
+var flag = false;
+
+$(document).ready(function() {
+  
+  //Initializing Map
+   var mapOptions = {
+       center: new google.maps.LatLng(37.792528, -122.393981),
+       zoom: 11,
+       mapTypeId: 'roadmap'
+    }
+
+  map = new google.maps.Map(document.getElementById("map-canvas"), mapOptions );
+  var geocoder = new google.maps.Geocoder();
+
+
+  //Method to get and plot earthquakes for city
+  document.getElementById('btnFind').addEventListener('click', function() {
+       address = document.getElementById("address").value;
+       if(address){
+          //Calling the method to get latitude and longitude coordinates for specific location
+          geocoder.geocode({'address': address}, function(results, status) {
+  if (status === 'OK') {
+    map.setCenter(results[0].geometry.location);
+          
+    lat = results[0].geometry.location.lat();
+    lng = results[0].geometry.location.lng();
+    //calling the method to get list of earthquakes for the entered location by capturing the coordinates
+    getEarthquakesList();
+  } else {
+    alert('Geocode was not successful for the following reason: ' + status);
+  }
+  });
+       } else {
+          alert("No value entered. Enter a city/place name");
+       }
+  });
+  
+  //Handling 'Enter' key press
+  document.getElementById('btnFind').onkeydown = function(event) {
+    if (event.keyCode === 13) {
+    }
+  }
+  
+  //Handling 'Enter' key press
+  document.getElementById('btnTenEarthquakes').onkeydown = function(event) {
+    if (event.keyCode === 13) {
+    }
+  }
+  
+  //Method to get a list of Top Ten Earthquakes
+  document.getElementById('btnTenEarthquakes').addEventListener('click', function() {
+  if(flag === false){
+
+    //VisualForce remoting to call Apex method to return list of top 10 earthquakes
+    Visualforce.remoting.Manager.invokeAction(
+      '{!$RemoteAction.EarthquakeSearchController.getTopTenEarthquakes}',   
+        function(result,event){
+          if(event.status){
+            listofTenQuakes = result;
+
+            //removing the "&quot" from the string returned as response body from apex method
+            listofTenQuakes = JSON.parse(listofTenQuakes.replace(/(&quot\;)/g,"\""));
+                
+            if(listofTenQuakes.earthquakes.length === 0){
+              alert("No results for " + address);
+            } else {
+              displayTopTen(listofTenQuakes);          
+            }
+          } else if(event.type === 'exception'){
+            console.log(event.type);
+          } else {
+            console.log(event.message);
+          }
+        },
+        {escape:true});
+
+      //setting flag to prevent calling the same method again
+      flag = true;
+    } else {
+  }
+     
+  $('html, body').animate({
+    scrollTop: $("#topten").offset().top
+    }, 2000);
+  });
+});
+
+
+//Method to create an ordered list of Top Ten earthquakes.
+function displayTopTen(listofTenQuakes){
+  
+   $("#topten").append("<table border='1px' width='100%'><tr bgcolor='#01A9DB' style='color:#fff'><td width='10%'><b>S. No.</b></td><td width='10%'><b>Magnitude</b></td><td width='60%'><b>Date</b></td><td width='20%'><b>Show on Map</b></td></tr></table>");
+  for(var j=0;j<listofTenQuakes.earthquakes.length;j++){
+    //var li = "<td>";
+    //reformatting date
+    var sNo = j;
+    sNo++;
+    var dateTime = listofTenQuakes.earthquakes[j].datetime;
+    var date = new Date(dateTime);
+    
+    //creating the content and calling the method to plot the markers for each on map.
+    if(sNo%2==0){
+    $("#topten").append("<table border='1px' width='100%'><tr bgcolor='#BDBDBD'><td width='10%'>&nbsp;"+sNo+"</td><td width='10%'>&nbsp;" +listofTenQuakes.earthquakes[j].magnitude + "</td><td width='60%'>&nbsp;" + date +"</td><td width='20%'> <input id='btnFind' type='button' value='Click Here' style='border:0px;background-color: #00a1ff;margin: 5px;color: white;' onclick='createMarker("+ listofTenQuakes.earthquakes[j].lat +","+ listofTenQuakes.earthquakes[j].lng+","+ listofTenQuakes.earthquakes[j].magnitude +")' /> </td></tr></table>");
+    }else{
+        $("#topten").append("<table border='1px' width='100%'><tr><td width='10%'>&nbsp;"+sNo+"</td><td width='10%'>&nbsp;" +listofTenQuakes.earthquakes[j].magnitude + "</td><td width='60%'>&nbsp;" + date +"</td><td width='20%'> <input id='btnFind' type='button' value='Click Here' style='border:0px;background-color: #00a1ff;margin: 5px;color: white;' onclick='createMarker("+ listofTenQuakes.earthquakes[j].lat +","+ listofTenQuakes.earthquakes[j].lng+","+ listofTenQuakes.earthquakes[j].magnitude +")' /> </td></tr></table>");
+    }
+    }
+    
+}
+
+//Method to get coordinates for entered location/city
+
+
+//Method to create individual markers for each of the Top Ten earthquake in the list
+function createMarker(lat,lng,magnitude){
+  var newLatlng = new google.maps.LatLng(lat,lng);
+  map.setCenter(newLatlng);
+  map.setZoom(4);
+    
+  var contentString = "<b>Magnitude:</b> " + magnitude;
+    
+  var infowindow = new google.maps.InfoWindow({
+    content: contentString
+  });
+    
+  var marker = new google.maps.Marker({
+    map:map,
+    animation: google.maps.Animation.DROP,
+    position: newLatlng
+  });
+    
+  marker.addListener('mouseover', function() {
+    infowindow.open(map, marker);
+  });
+    
+    
+  $('html, body').animate({
+    scrollTop: $("#map-canvas").offset().top
+  }, 2000);
+}
+
+
+//Method to get a list of earthquakes for a specific location by calling an Apex method
+function getEarthquakesList(){
+  
+  //Clearing all markers from previous search
+  for(i=0; i<markers.length; i++){
+    markers[i].setMap(null);
+  }
+
+  //Visualforce remoting to call apex method to get list of earthquakes by passing parameters latitude and longitude
+  Visualforce.remoting.Manager.invokeAction(
+    '{!$RemoteAction.EarthquakeSearchController.getGoogleResponse}',
+    lat,lng,   
+    function(result,event){
+      if(event.status){
+        listofQuakes = result;
+
+        //removing the "&quot" from the string returned as response body from apex method
+        listofQuakes = JSON.parse(listofQuakes.replace(/(&quot\;)/g,"\""));
+                
+        if(listofQuakes.earthquakes.length === 0){
+          alert("No results for " + address);
+        } else {
+
+          //calling the method to create markers for all earthquakes in the returned response
+          createMarkers(listofQuakes);
+        }
+      } else if(event.type === 'exception'){
+        console.log(event.type);
+      } else {
+        console.log(event.message);
+      }
+    }, 
+  {escape:true});
+}
+
+//Method to create markers for all eqrthquakes returned for specific location
+function createMarkers(listofQuakes){
+  for (var i=0; i<listofQuakes.earthquakes.length; i++){
+    
+    var myLatlng = new google.maps.LatLng(listofQuakes.earthquakes[i].lat,listofQuakes.earthquakes[i].lng);
+
+    //reformatting date to show in info window
+    var dateTime = listofQuakes.earthquakes[i].datetime;
+    var date = new Date(dateTime);
+       
+    map.setZoom(8);
+       
+    var content = '<div>Date Time: ' + date + '</br> Depth: ' + listofQuakes.earthquakes[i].depth + ' </br> Magnitude: ' +listofQuakes.earthquakes[i].magnitude + '</div>';
+       
+    var marker = new google.maps.Marker({
+      map:map,
+      animation: google.maps.Animation.DROP,
+      position: myLatlng
+    });
+
+    //adding the marker to an array to remove this before a new search  
+    markers.push(marker);
+      
+    var infowindow = new google.maps.InfoWindow()
+
+    google.maps.event.addListener(marker,'click', (function(marker,content,infowindow){ 
+      return function() {
+        infowindow.setContent(content);
+        infowindow.open(map,marker);
+      };
+    })(marker,content,infowindow)); 
+  }
+}
+
+</script>
+</head>
+<body>
+   <div class="navbar navbar-inverse">
+        <div class="container">
+            <div class="container">
+                <div class="navbar-header">
+                  <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-collapse">
+                    <span class="sr-only">Toggle navigation</span>
+                      <span class="icon-bar"></span>
+
+                    </button>
+                  <ul><li class="active"><a class="navbar-brand" href="/apex/earth">Earthquakes</a></li></ul>
+                </div>
+                
+            </div>
+        </div>
+      </div>
+
+      <div class="container" syle="height:90%">
+        <br></br>
+        <br></br>
+        
+        <div>
+          <label for="address">Enter City/Location:</label>
+          <input type="text"  name="address" id="address" placeholder="Type in City/Location" size="75%" />
+          <input id="btnFind" type="button" value="Go" />
+          <input id="btnTenEarthquakes" type="button" value="Top 10 Earthquakes" data-spy="scroll" data-target="#topten" />
+        </div>
+      </div>
+
+      <br></br>
+
+      <div id="map-canvas"/>
+
+      <br></br>
+      
+      <div class="panel panel-default" id="accordian" >
+          <div class="panel-heading" style="background-color:#01A9DB">
+            <h3 class="panel-title">Top 10 Earthquakes around the world:</h3>
+          </div>
+          <div class="panel-body">
+           
+            <div id="topten"></div>
+          </div>
+      </div>
+</body>
+</apex:page>
