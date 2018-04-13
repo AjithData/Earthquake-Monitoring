@@ -36,7 +36,7 @@ Methods Created in Visualforce page
 3. Method to create an ordered list of Top Ten earthquakes.
 4. Method to get coordinates for entered location/city.
 5. Method to get a list of earthquakes for a specific location by calling an Apex method.
-6. Method to create markers for all eqrthquakes returned for specific location.
+6. Method to create markers for all eqrthquakes returned for specific location. 
 
 TestClass for Apex Controller
 -----------------------------
